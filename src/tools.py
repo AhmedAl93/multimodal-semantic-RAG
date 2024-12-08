@@ -2,14 +2,13 @@ from llama_parse import LlamaParse
 from llama_index.llms.gemini import Gemini
 from llama_index.embeddings.gemini import GeminiEmbedding
 from llama_index.core.node_parser import SemanticSplitterNodeParser
-from llama_index.core.retrievers import RecursiveRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.experimental.query_engine import PandasQueryEngine
-from llama_index.core.schema import IndexNode, TextNode #Document, ImageNode
+from llama_index.core.schema import TextNode #Document, ImageNode
 from llama_index.core import get_response_synthesizer, VectorStoreIndex
+from llama_index.core.postprocessor import SimilarityPostprocessor
 import google.generativeai as genai
 from typing import List
-import hashlib, camelot, time, glob, io, fitz, os
+import camelot, time, glob, io, fitz, os
 from pathlib import Path
 from PIL import Image
 from dotenv import find_dotenv, load_dotenv
@@ -82,7 +81,7 @@ class DocProcessor:
 
         return semantic_nodes
 
-    def extract_tables_from_files(self, files_to_process: List):
+    def extract_tables_from_files(self, files_to_process: List)-> List[tuple]:
         """
         Extracts tables from the provided files.
 
@@ -90,19 +89,23 @@ class DocProcessor:
             files_to_process (List[str]): List of file paths to extract tables from.
 
         Returns:
-            List: A list of DataFrames representing extracted tables.
+            List: List of DataFrames representing extracted tables, each with corresponding source file.
         """
-        table_dfs = []
+        table_dfs_and_files = []
         for path in files_to_process:
-            # Use Camelot to read tables from PDF pages
-            table_list = camelot.read_pdf(path, pages="all", suppress_stdout=True)
+        # for path in glob.glob(inputPath):
+            table_list = camelot.read_pdf(path, 
+                                        pages="all", 
+                                        suppress_stdout= True)
 
-            # Append each table's DataFrame to the list
             for table in table_list:
-                table_dfs.append(table.df)
-        return table_dfs
+                table_dfs_and_files.append(
+                    (table.df, f"{Path(path).stem}")
+                    )
 
-    def get_table_summaries(self, table_dfs):
+        return table_dfs_and_files
+
+    def get_table_summaries(self, table_dfs_and_files):
         """
         Generates summaries for a list of tables using a language model.
 
@@ -112,22 +115,20 @@ class DocProcessor:
         Returns:
             List[str]: Summaries for each table.
         """
-        table_summaries = []
-        for i, df in enumerate(table_dfs):
-            # Handle request per minute (RPM) limits
-            if len(table_dfs) > 15 and (i % 15) == 0 and i > 0:
-                print("RPM limit reached, 1 minute pause before resuming ...")
+        table_summaries= []
+        for i, (df, file) in enumerate(table_dfs_and_files):
+            #Request limit per model per minute= 15
+            if len(table_dfs_and_files)>15 and (i%15)==0 and i>0:
+                # print("RPM limit reached, 1 minute pause before resuming ...")
                 time.sleep(60)
 
-            # Convert the DataFrame to HTML and generate a summary
-            df_html = df.to_html()
+            df_html= df.to_html()
             df_summary = self.llm.complete(
                 f"Write a summary of the following HTML table, extract its values and link them: {df_html}"
-            )
-            table_summaries.append(df_summary.text)
-
-            # Pause briefly to avoid exceeding resource limits
-            print("1 second pause before resuming ...")
+                )
+            table_summaries.append((df_summary.text, file))
+            #To avoid ResourceExhausted error, reference: https://groups.google.com/g/adwords-api/c/gcKvh1C3GX4/m/uHU6akJAAwAJ
+            # print("1 seconds pause before resuming ...")
             time.sleep(1)
 
         return table_summaries
@@ -142,33 +143,18 @@ class DocProcessor:
         Returns:
             Tuple: A tuple containing nodes and query engine mappings.
         """
-        # Extract tables from files
-        table_dfs = self.extract_tables_from_files(files_to_process)
-
-        # Generate summaries for tables
-        table_summaries = self.get_table_summaries(table_dfs)
-
-        # Create query engines for each table DataFrame
-        df_query_engines = [
-            PandasQueryEngine(table_df, llm=self.llm)
-            for table_df in table_dfs
-        ]
-
-        # Generate nodes and map them to unique IDs
-        df_nodes = [
-            IndexNode(
+        table_dfs_and_files= self.extract_tables_from_files(files_to_process)
+        table_summaries= self.get_table_summaries(table_dfs_and_files)
+        df_nodes=[]
+        for summary, file in table_summaries:
+            node = TextNode(
                 text=summary,
-                index_id=hashlib.sha256(df.to_html().encode('utf-8')).hexdigest()
-            )
-            for df, summary in zip(table_dfs, table_summaries)
-        ]
+                metadata={
+                    "source_file": file,}, 
+                    )
+            df_nodes.append(node)
 
-        # Map unique IDs to their respective query engines
-        df_id_query_engine_mapping = {
-            hashlib.sha256(df.to_html().encode('utf-8')).hexdigest(): df_query_engine
-            for df, df_query_engine in zip(table_dfs, df_query_engines)
-        }
-        return df_nodes, df_id_query_engine_mapping
+        return df_nodes
 
     def extract_images_from_files(self, files_to_process, save_dir=""):
         """
@@ -221,7 +207,7 @@ class DocProcessor:
         for i, img_path in enumerate(image_paths):
             # Handle request per minute (RPM) limits
             if len(image_paths) > 15 and (i % 15) == 0 and i > 0:
-                print("RPM limit reached, 1 minute pause before resuming ...")
+                # print("RPM limit reached, 1 minute pause before resuming ...")
                 time.sleep(60)
 
             # Prompt to guide the AI for image summarization
@@ -248,14 +234,14 @@ class DocProcessor:
                     retry = False
                 except Exception as e:
                     # Handle exceptions by retrying after a short pause
-                    print(f"An exception occurred: {e}. Retrying in 2 seconds ...")
+                    # print(f"An exception occurred: {e}. Retrying in 2 seconds ...")
                     time.sleep(2)
 
             # Append the AI-generated summary to the list
             image_summaries.append(response.text)
 
             # Pause briefly to avoid exceeding resource or rate limits
-            print("1 second pause before resuming ...")
+            # print("1 second pause before resuming ...")
             time.sleep(1)
 
         return image_summaries
@@ -318,18 +304,14 @@ class QueryEngine:
 
     def build_recursive_retriever(self, 
                                   files_to_process, 
-                                  top_k=5, 
-                                  retriever_verbose=False):
+                                  top_k=10):
         """
         Builds a recursive retriever to enable complex querying across multiple data types.
 
         Args:
             files_to_process (List[str]): A list of file paths to be processed.
             top_k (int, optional): The number of top results to retrieve for similarity-based searches.
-                                   Defaults to 5.
-            retriever_verbose (bool, optional): Whether to enable verbose logging for the retriever.
-                                                Defaults to False.
-
+                                   Defaults to 10.
         Returns:
             RetrieverQueryEngine: A query engine capable of recursive retrieval and response synthesis.
         """
@@ -341,9 +323,8 @@ class QueryEngine:
         image_nodes = self.doc_processor.get_image_nodes(files_to_process)
         self.logger.info('Image nodes are extracted')
 
-        # Step 3: Extract table nodes and a mapping of table IDs to query engines for querying table data
-        (df_nodes,  # DataFrame nodes representing table summaries
-         df_id_query_engine_mapping) = self.doc_processor.get_table_nodes(files_to_process)
+        # Step 3: Extract table nodes
+        df_nodes= self.doc_processor.get_table_nodes(files_to_process)
         self.logger.info('Table nodes are extracted')
 
         # Step 4: Create a vector-based index for semantic, table, and image nodes
@@ -355,26 +336,20 @@ class QueryEngine:
         # Step 5: Set up a retriever from the vector index for similarity-based querying
         vector_retriever = vector_index.as_retriever(similarity_top_k=top_k)
 
-        # Step 6: Build a recursive retriever to orchestrate vector-based and table-based retrieval
-        recursive_retriever = RecursiveRetriever(
-            "vector",  # Main retrieval type is vector-based
-            retriever_dict={"vector": vector_retriever},  # Map of retriever types
-            query_engine_dict=df_id_query_engine_mapping,  # Link table IDs to specific query engines
-            verbose=retriever_verbose,  # Enable verbose logging if specified
-        )
-
-        # Step 7: Set up a response synthesizer to generate and format query responses
+        # Step 6: Set up a response synthesizer to generate and format query responses
         response_synthesizer = get_response_synthesizer(
-            llm=self.doc_processor.llm,  # Use the large language model (LLM) for response generation
-            response_mode="compact"  # Generate concise responses
-        )
+            llm= self.doc_processor.llm, 
+            response_mode="compact")
 
-        # Step 8: Build a query engine combining the recursive retriever and response synthesizer
-        query_engine = RetrieverQueryEngine.from_args(
-            recursive_retriever,  # The main retriever for fetching results
-            llm=self.doc_processor.llm,  # The language model for generating responses
-            response_synthesizer=response_synthesizer  # The response synthesizer for formatting
-        )
+        # Step 8: Build a query engine combining the retriever and response synthesizer        
+        query_engine = RetrieverQueryEngine(
+            retriever=vector_retriever,
+            node_postprocessors=[SimilarityPostprocessor(similarity_cutoff=0.7,
+                                                 filter_empty=True,
+                                                 filter_duplicates=True,
+                                                 filter_similar=True)],
+            response_synthesizer=response_synthesizer,
+            )
 
         # Return the query engine to allow querying across nodes with synthesized responses
         return query_engine

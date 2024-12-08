@@ -8,12 +8,14 @@ parser.add_argument(
 
 parser.add_argument(
     '--Query', 
-    help= '')
+    help= '',
+    default=None)
 
 def main():
     args = parser.parse_args()
-    logger = tools.Logger(log_file="../RAG_log.log", 
-                                    logger_name=__name__).get_logger()
+    logger = tools.Logger(
+        log_file="../RAG_log.log", 
+        logger_name=__name__).get_logger()
     logger.info("Script execution started.")
 
     try:
@@ -33,9 +35,15 @@ def main():
 
         logger.info("Query engine built successfully.")
 
-        response = query_engine.query(args.Query
-        )
-        print(response.response)
+        if args.Query==None:
+            print("no query was provided ...")
+            while True:
+                Query = input("\nEnter your query:")
+                response = query_engine.query(Query)
+                print(f"\nHere is the response:\n{response.response}")
+        else:
+            response = query_engine.query(args.Query)
+            print(response.response)
     
     except Exception as e:
         # Log unexpected errors
