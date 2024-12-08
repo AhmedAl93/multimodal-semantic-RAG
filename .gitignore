@@ -1,0 +1,5 @@
+src/__pycache__/
+data_images/
+requirements_pip.txt
+test.ipynb
+.env
