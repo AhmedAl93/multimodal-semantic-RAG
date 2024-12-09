@@ -3,9 +3,9 @@ from llama_index.llms.gemini import Gemini
 from llama_index.embeddings.gemini import GeminiEmbedding
 from llama_index.core.node_parser import SemanticSplitterNodeParser
 from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.core.schema import TextNode #Document, ImageNode
+from llama_index.core.schema import TextNode
 from llama_index.core import get_response_synthesizer, VectorStoreIndex
-from llama_index.core.postprocessor import SimilarityPostprocessor
+from llama_index.core.postprocessor import SimilarityPostprocessor, LLMRerank
 import google.generativeai as genai
 from typing import List
 import camelot, time, glob, io, fitz, os
@@ -344,10 +344,12 @@ class QueryEngine:
         # Step 8: Build a query engine combining the retriever and response synthesizer        
         query_engine = RetrieverQueryEngine(
             retriever=vector_retriever,
-            node_postprocessors=[SimilarityPostprocessor(similarity_cutoff=0.7,
-                                                 filter_empty=True,
-                                                 filter_duplicates=True,
-                                                 filter_similar=True)],
+            node_postprocessors=[
+            LLMRerank(
+                llm= self.doc_processor.llm,
+                choice_batch_size=5,
+                top_n=3,)
+            ],
             response_synthesizer=response_synthesizer,
             )
 
