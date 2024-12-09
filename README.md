@@ -2,10 +2,10 @@
 #Multimodal Semantic RAG
 
 ### Table of contents
-* [Overview](### Overview)
-* [Features](### Features)
-* [Workflow](### Workflow)
-* [Demo](### Demo)
+* [Overview](###Overview)
+* [Features](###Features)
+* [Workflow](###Workflow)
+* [Demo](###Demo)
 
 ### Overview
 
