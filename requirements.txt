@@ -1,7 +1,9 @@
 camelot_py==0.11.0
-fitz==0.0.1.dev2
+#fitz==0.0.1.dev2
+ghostscript==0.7
 llama_index==0.12.3
 llama_parse==0.5.17
 Pillow==11.0.0
 protobuf==5.29.1
+PyMuPDF==1.24.14
 python-dotenv==1.0.1
