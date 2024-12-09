@@ -368,12 +368,13 @@ class Logger:
 
         # Set up the logger
         self.logger = logging.getLogger(logger_name)
-
-        fhandler = logging.FileHandler(filename=log_file, mode='w')
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fhandler.setFormatter(formatter)
-        self.logger.addHandler(fhandler)
         self.logger.setLevel(log_level)
+
+        if not self.logger.handlers:
+            fhandler = logging.FileHandler(filename=log_file, mode='w')
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            fhandler.setFormatter(formatter)
+            self.logger.addHandler(fhandler)
 
     def get_logger(self):
         """
