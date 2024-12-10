@@ -19,15 +19,21 @@ This requires a framework that can understand and generate responses by coherent
 To tackle this problem, this repo aims to create a Multimodal Semantic RAG system.
 
 ### Features
-- Semantic chunking:
+- Semantic chunking: \
 With LlamaIndex's SemanticSplitterNodeParser, split documents into semantically coherent, meaningful chunks.
-- Image and table detection:
+- Image and table detection: \
 Detecting images and tables using PyMuPDF and Camelot respectively.
-- Summarizing images and tables:
+- Summarizing images and tables: \
 Using a multimodal LLM (eg. gemini-1.5-flash), create a text description of each image and each table (tables transformed to dataframes, then fed to the LLM in HTML format.
-- ReRanking: achieved using LlamaIndex's LLMRerank, that provides LLM-based reranker.
-- Answer generation: using the retrieved and ranked chunks, a Gemini LLM will generate an answer to the query.
-More details are given in the workflow section
+- Embedding: \
+Embed chunks, images and tables summaries using "text-embedding-004" model.
+- Semantic Retrieval: \
+Achieved using LlamaIndex's RetrieverQueryEngine
+- ReRanking: \
+Achieved using LlamaIndex's LLMRerank, that provides LLM-based reranker.
+- Answer generation: \
+Using the retrieved and ranked chunks, a Gemini LLM will generate an answer to the query. \
+<br />More details are given in the workflow section
 
 ### Installation
 To run the app locally, the following steps are necessary:
