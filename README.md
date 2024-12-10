@@ -1,5 +1,4 @@
-
-#Multimodal Semantic RAG
+# Multimodal Semantic RAG
 
 ### Table of contents
 * [Overview](###Overview)
@@ -55,12 +54,16 @@ The current workflow is as follows:
 This workflow may evolve to include additional steps, support a wider range of AI platforms and providers, or introduce entirely new concepts (e.g., GraphRAG, AgenticRAG). For more details, refer to the ###Perspectives section.
 
 ### Usage
-1. Process the document(s): 
+1. Process input document(s):
+
 Run the following command:
 ```bash
 python .\main.py --InputPath <your document directory path, or single file path >
 ```
-2. Provide queries: 
+Currently, only PDF files are supported. So if the input directory contains x PDFs, x files will be processed.
+
+2. Provide queries:
+
 In the terminal, you can provide multiple queries and get relevant answers
 
 
