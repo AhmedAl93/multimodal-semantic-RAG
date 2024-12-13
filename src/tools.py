@@ -13,9 +13,7 @@ from pathlib import Path
 from PIL import Image
 from dotenv import find_dotenv, load_dotenv
 import logging
-
-# logger = logging.getLogger(__name__)
-load_dotenv(find_dotenv())
+from getpass import getpass
 
 class DocProcessor:
     """
@@ -27,6 +25,7 @@ class DocProcessor:
         """
         Initializes the DocProcessor with required models, parsers, and configurations.
         """
+        self.retrieve_or_prompt_api_key()
         # Parser to process documents into a specific format (e.g., markdown)
         self.parser = LlamaParse(result_type="markdown", verbose=False)
 
@@ -48,6 +47,26 @@ class DocProcessor:
 
         # List of supported file extensions for processing
         self.supported_extensions = [".pdf"]
+
+    def retrieve_or_prompt_api_key(self):
+        """
+        Retrieves API keys from the .env file or prompts the user to input them if not found.
+
+        Functionality:
+        - Loads environment variables from a .env file using dotenv.
+        - Checks if specific API keys are present in the environment.
+        - If an API key is missing, prompts the user to input it via the console.
+        """
+        load_dotenv(find_dotenv())
+        if not "LLAMA_CLOUD_API_KEY" in os.environ:
+            os.environ["LLAMA_CLOUD_API_KEY"]= getpass(
+                "Please provide your LLAMA_CLOUD_API_KEY:"
+                )
+
+        if not "GOOGLE_API_KEY" in os.environ:
+            os.environ["GOOGLE_API_KEY"]= getpass(
+                "Please provide your GOOGLE_API_KEY:"
+                )
 
     def list_supported_files(self, inputPath):
         """
